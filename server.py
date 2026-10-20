@@ -424,14 +424,14 @@ def had_recent_welcome(sender, hours=1.0, cfg=None):
 def should_send_welcome_menu(sender, cfg=None):
     """Retorna True SOMENTE quando for:
     1) A primeira mensagem do dia dessa pessoa; OU
-    2) Quando passaram >= 156 min sem nenhuma conversa de ambos os lados
+    2) Quando passaram >= 15 min sem nenhuma conversa de ambos os lados
        (ou quando o atendimento anterior já foi encerrado)."""
     if not sender:
         return False
     if cfg is None:
         cfg = get_settings()
     phone = clean_phone(sender)
-    inactivity_mins = float(cfg.get('welcome_inactivity_minutes', '156') or '156')
+    inactivity_mins = float(cfg.get('welcome_inactivity_minutes', cfg.get('human_pause_minutes', '15')) or '15')
     now_utc = datetime.now(timezone.utc)
     inactivity_cutoff = (now_utc - timedelta(minutes=inactivity_mins)).isoformat()
 
