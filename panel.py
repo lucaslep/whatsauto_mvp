@@ -670,70 +670,82 @@ rules_tree.pack(side='left', fill='both', expand=True)
 rules_scroll.pack(side='right', fill='y')
 
 # ==================== ABA 2: CONECTAR WHATSAPP (QR CODE) ====================
-tab_qr = ttk.Frame(notebook, padding=20)
+tab_qr = ttk.Frame(notebook, padding=14)
 notebook.add(tab_qr, text='  📱 2. Conexão WhatsApp (QR Code)  ')
 
 qr_card = tk.Frame(
     tab_qr,
     bg=THEME['bg_card'],
     padx=28,
-    pady=22,
+    pady=18,
     highlightthickness=1,
     highlightbackground=THEME['border'],
 )
-qr_card.pack(fill='both', expand=True, padx=40, pady=6)
+qr_card.pack(fill='both', expand=True, padx=20, pady=4)
+qr_card.columnconfigure(0, weight=5)
+qr_card.columnconfigure(1, weight=5)
+qr_card.rowconfigure(0, weight=1)
+
+# Coluna Esquerda: Instruções, Status e Botões
+qr_left_col = tk.Frame(qr_card, bg=THEME['bg_card'], padx=10)
+qr_left_col.grid(row=0, column=0, sticky='nsew', pady=10)
 
 tk.Label(
-    qr_card,
-    text='Conecte o WhatsApp da sua Empresa em Segundos',
-    font=('Segoe UI', 14, 'bold'),
+    qr_left_col,
+    text='📱 Conecte o WhatsApp da Empresa',
+    font=('Segoe UI', 15, 'bold'),
     bg=THEME['bg_card'],
     fg=THEME['slate_dark'],
-).pack(anchor='center', pady=(0, 6))
+).pack(anchor='w', pady=(4, 8))
 
-qr_info_label = tk.Label(
-    qr_card,
-    text=(
-        '1️⃣  Abra o WhatsApp no celular da empresa     •     '
-        '2️⃣  Vá em Aparelhos Conectados > Conectar Aparelho     •     '
-        '3️⃣  Aponte a câmera para o quadro abaixo'
-    ),
+tk.Label(
+    qr_left_col,
+    text='Siga os 3 passos abaixo para vincular seu aparelho sem precisar da API paga da Meta:',
     font=('Segoe UI', 10),
-    bg='#F8FAFC',
+    bg=THEME['bg_card'],
     fg=THEME['slate_med'],
+    wraplength=420,
+    justify='left',
+).pack(anchor='w', pady=(0, 14))
+
+qr_steps_box = tk.Frame(
+    qr_left_col,
+    bg='#F8FAFC',
     padx=16,
-    pady=8,
+    pady=14,
+    highlightthickness=1,
+    highlightbackground=THEME['border'],
 )
-qr_info_label.pack(fill='x', pady=(0, 14))
+qr_steps_box.pack(fill='x', pady=(0, 16))
+
+for step_txt in (
+    '1️⃣  Abra o WhatsApp no celular da empresa',
+    '2️⃣  Toque em Menu (⋮) ou Configurações > Aparelhos conectados',
+    '3️⃣  Toque em "Conectar um aparelho" e aponte para o QR Code ao lado 👉',
+):
+    tk.Label(
+        qr_steps_box,
+        text=step_txt,
+        font=('Segoe UI', 10, 'bold'),
+        bg='#F8FAFC',
+        fg=THEME['slate_dark'],
+        anchor='w',
+        justify='left',
+    ).pack(fill='x', pady=4)
 
 qr_state_banner = tk.Label(
-    qr_card,
+    qr_left_col,
     text='Verificando status do WhatsApp...',
-    font=('Segoe UI', 12, 'bold'),
-    bg=THEME['bg_card'],
+    font=('Segoe UI', 11, 'bold'),
+    bg='#ECFDF5',
     fg=THEME['brand_green_dark'],
-)
-qr_state_banner.pack(anchor='center', pady=6)
-
-qr_canvas_holder = tk.Frame(
-    qr_card,
-    bg='#FFFFFF',
     padx=14,
-    pady=14,
-    highlightthickness=2,
-    highlightbackground=THEME['brand_green'],
+    pady=10,
+    wraplength=420,
+    justify='left',
+    anchor='w',
 )
-qr_canvas_holder.pack(anchor='center', pady=10)
-
-qr_canvas = tk.Canvas(
-    qr_canvas_holder,
-    width=260,
-    height=260,
-    bg='white',
-    highlightthickness=0,
-)
-qr_canvas.pack(anchor='center')
-qr_photo_ref = {'raw': None}
+qr_state_banner.pack(fill='x', pady=(0, 18))
 
 
 def reset_qr_session():
@@ -750,14 +762,38 @@ def reset_qr_session():
         messagebox.showerror('Erro ao reiniciar QR Code', str(exc))
 
 
-qr_btn_row = tk.Frame(qr_card, bg=THEME['bg_card'])
-qr_btn_row.pack(anchor='center', pady=(12, 0))
+qr_btn_row = tk.Frame(qr_left_col, bg=THEME['bg_card'])
+qr_btn_row.pack(anchor='w', pady=(4, 0))
 ttk.Button(qr_btn_row, text='🔄 Atualizar Status / QR Code', command=lambda: refresh_qr_status(), style='Primary.TButton').pack(
-    side='left', padx=8
+    side='left', padx=(0, 8)
 )
-ttk.Button(qr_btn_row, text='🔌 Desconectar / Gerar Novo QR Code', command=reset_qr_session, style='Danger.TButton').pack(
-    side='left', padx=8
+ttk.Button(qr_btn_row, text='🔌 Desconectar / Novo QR Code', command=reset_qr_session, style='Danger.TButton').pack(
+    side='left', padx=4
 )
+
+# Coluna Direita: Quadro completo do QR Code (sem cortes!)
+qr_right_col = tk.Frame(qr_card, bg=THEME['bg_card'])
+qr_right_col.grid(row=0, column=1, sticky='nsew')
+
+qr_canvas_holder = tk.Frame(
+    qr_right_col,
+    bg='#FFFFFF',
+    padx=16,
+    pady=16,
+    highlightthickness=3,
+    highlightbackground=THEME['brand_green'],
+)
+qr_canvas_holder.pack(expand=True, anchor='center')
+
+qr_canvas = tk.Canvas(
+    qr_canvas_holder,
+    width=300,
+    height=300,
+    bg='white',
+    highlightthickness=0,
+)
+qr_canvas.pack(anchor='center')
+qr_photo_ref = {'raw': None}
 
 # ==================== ABA 3: ATENDIMENTO HUMANO E HISTÓRICO ====================
 tab_events = ttk.Frame(notebook, padding=12)
@@ -1158,24 +1194,32 @@ toggle_mode_btn.config(command=toggle_simulation_mode)
 def render_qr_code(raw_qr):
     if not raw_qr:
         qr_canvas.delete('all')
-        qr_canvas.config(width=320, height=90, bg='#F8FAFC')
+        qr_canvas.config(width=280, height=280, bg='#F8FAFC')
         qr_canvas.create_text(
-            160,
-            45,
-            text='✔ Nenhum QR Code pendente no momento',
+            140,
+            120,
+            text='✅',
+            fill=THEME['brand_green'],
+            font=('Segoe UI Emoji', 34),
+        )
+        qr_canvas.create_text(
+            140,
+            175,
+            text='Sem QR Code pendente\nno momento',
             fill=THEME['brand_green_dark'],
-            font=('Segoe UI', 10, 'bold'),
+            font=('Segoe UI', 11, 'bold'),
+            justify='center',
         )
         qr_photo_ref['raw'] = None
         return
     if qr_photo_ref['raw'] == raw_qr:
         return
-    qr_obj = qrcode.QRCode(box_size=6, border=2)
+    qr_obj = qrcode.QRCode(box_size=5, border=2)
     qr_obj.add_data(raw_qr)
     qr_obj.make(fit=True)
     matrix = qr_obj.get_matrix()
     rows = len(matrix)
-    box = 6
+    box = max(4, min(6, 310 // max(rows, 1)))
     size = rows * box
     qr_canvas.config(width=size, height=size, bg='white')
     qr_canvas.delete('all')
