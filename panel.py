@@ -143,9 +143,13 @@ except Exception:
 
 root = tk.Tk()
 root.title('WhatsAuto Empresarial — Central Inteligente de Atendimento WhatsApp')
-root.geometry('1080x780')
-root.minsize(980, 710)
+root.geometry('1180x820')
+root.minsize(1000, 700)
 root.configure(bg=THEME['bg_app'])
+try:
+    root.state('zoomed')
+except Exception:
+    pass
 
 try:
     bundle_dir = Path(getattr(sys, '_MEIPASS', BASE_DIR))
@@ -370,7 +374,7 @@ def style_text_widget(widget):
 
 
 # ==================== TOPO EXECUTIVO (HEADER + KPIs) ====================
-header_banner = tk.Frame(root, bg=THEME['bg_header'], padx=20, pady=12)
+header_banner = tk.Frame(root, bg=THEME['bg_header'], padx=20, pady=8)
 header_banner.pack(fill='x')
 
 # Faixa decorativa verde no topo
@@ -386,11 +390,11 @@ brand_left.pack(side='left')
 logo_badge = tk.Label(
     brand_left,
     text=' 🤖 ',
-    font=('Segoe UI Emoji', 16),
+    font=('Segoe UI Emoji', 15),
     bg=THEME['brand_green'],
     fg='white',
     padx=4,
-    pady=2,
+    pady=1,
 )
 logo_badge.pack(side='left', padx=(0, 10))
 
@@ -400,7 +404,7 @@ title_texts.pack(side='left')
 tk.Label(
     title_texts,
     text='WhatsAuto Empresarial',
-    font=('Segoe UI', 15, 'bold'),
+    font=('Segoe UI', 14, 'bold'),
     fg='#FFFFFF',
     bg=THEME['bg_header'],
 ).pack(anchor='w')
@@ -417,7 +421,7 @@ toggle_mode_btn = ttk.Button(title_row, text='⚡ Alternar Modo Real / Simulaç�
 toggle_mode_btn.pack(side='right', padx=4)
 
 # Sub-barra de Status e Indicadores Rápidos
-status_bar = tk.Frame(root, bg=THEME['bg_subheader'], padx=20, pady=8)
+status_bar = tk.Frame(root, bg=THEME['bg_subheader'], padx=20, pady=6)
 status_bar.pack(fill='x')
 
 status_label = tk.Label(
@@ -449,26 +453,65 @@ kpi_summary_label.pack(side='right')
 
 # ==================== ÁREA DE ABAS (NOTEBOOK) ====================
 notebook = ttk.Notebook(root)
-notebook.pack(fill='both', expand=True, padx=16, pady=(8, 14))
+notebook.pack(fill='both', expand=True, padx=14, pady=(6, 10))
 
 # ==================== ABA 1: REGRAS E SIMULADOR ====================
-tab_rules = ttk.Frame(notebook, padding=12)
+tab_rules = ttk.Frame(notebook, padding=10)
 notebook.add(tab_rules, text='  💬 1. Regras & Simulador  ')
 
-sim_frame = ttk.LabelFrame(
-    tab_rules,
-    text=' ⚡ Simulador Instantâneo (Teste palavras-chave, opções 1/2/3/4 ou saudações) ',
-    padding=10,
+# Linha superior dividida lado a lado (Formulário à esquerda | Simulador à direita) para deixar a tabela gigante!
+top_split = ttk.Frame(tab_rules)
+top_split.pack(fill='x', pady=(0, 6))
+top_split.columnconfigure(0, weight=6)
+top_split.columnconfigure(1, weight=4)
+
+form_frame = ttk.LabelFrame(
+    top_split,
+    text=' ✏️ Criar ou Editar Regra (Separe sinônimos por vírgula) ',
+    padding=8,
 )
-sim_frame.pack(fill='x', pady=(0, 10))
+form_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 6))
+
+editing_rule_id = {'id': None}
+rules_cache = {}
+
+ttk.Label(
+    form_frame,
+    text='Palavras-chave / Sinônimos (ex.: 1, preço, valor, quanto custa, orçamento):',
+    style='Card.TLabel',
+).pack(anchor='w')
+keyword_entry = ttk.Entry(form_frame, font=('Segoe UI', 10))
+keyword_entry.pack(fill='x', pady=(2, 6))
+
+ttk.Label(
+    form_frame,
+    text='Resposta automática do robô (pode usar várias linhas com Enter e *negrito*):',
+    style='Card.TLabel',
+).pack(anchor='w')
+reply_text_widget = tk.Text(form_frame, height=2, font=('Segoe UI', 10), wrap='word')
+style_text_widget(reply_text_widget)
+reply_text_widget.pack(fill='x', pady=(2, 2))
+
+sim_frame = ttk.LabelFrame(
+    top_split,
+    text=' ⚡ Simulador Instantâneo (Teste 1/2/3/4 ou saudações) ',
+    padding=8,
+)
+sim_frame.grid(row=0, column=1, sticky='nsew', padx=(6, 0))
+
+ttk.Label(
+    sim_frame,
+    text='Mensagem de teste do cliente:',
+    style='Card.TLabel',
+).pack(anchor='w')
 
 sim_input_row = ttk.Frame(sim_frame, style='Card.TFrame')
-sim_input_row.pack(fill='x')
+sim_input_row.pack(fill='x', pady=(2, 6))
 message_entry = ttk.Entry(sim_input_row, font=('Segoe UI', 10))
-message_entry.pack(side='left', fill='x', expand=True, padx=(0, 10))
+message_entry.pack(side='left', fill='x', expand=True, padx=(0, 8))
 message_entry.insert(0, 'Oi, bom dia!')
 
-output_var = tk.StringVar(value='💡 Digite uma mensagem acima e clique em "Testar Resposta" para ver como o robô responderá.')
+output_var = tk.StringVar(value='💡 Clique em "Testar" para ver a resposta do robô.')
 
 
 def simulate():
@@ -487,55 +530,28 @@ def simulate():
             preview = reply_text.replace('\n', '  ↵  ')
             output_var.set(f'{t_label}  ➔  {preview}')
         else:
-            output_var.set('🔇 Nenhuma regra correspondente ➔ O robô ficará em silêncio para atendimento humano.')
+            output_var.set('🔇 Nenhuma regra correspondente ➔ Silêncio.')
     except Exception as exc:
         messagebox.showerror('Erro', str(exc))
 
 
-ttk.Button(sim_input_row, text='🚀 Testar Resposta', command=simulate, style='Primary.TButton').pack(side='right')
+ttk.Button(sim_input_row, text='🚀 Testar', command=simulate, style='Primary.TButton').pack(side='right')
 sim_result_banner = tk.Label(
     sim_frame,
     textvariable=output_var,
-    wraplength=960,
+    wraplength=420,
     justify='left',
     anchor='w',
     bg='#F0FDF4',
     fg='#065F46',
     font=('Segoe UI', 9, 'bold'),
-    padx=10,
+    padx=8,
     pady=6,
 )
-sim_result_banner.pack(fill='x', pady=(8, 0))
-
-form_frame = ttk.LabelFrame(
-    tab_rules,
-    text=' ✏️ Criar ou Editar Regra de Atendimento (Separe sinônimos por vírgula e use múltiplas linhas) ',
-    padding=10,
-)
-form_frame.pack(fill='x', pady=(0, 8))
-
-editing_rule_id = {'id': None}
-rules_cache = {}
-
-ttk.Label(
-    form_frame,
-    text='Palavras-chave / Sinônimos separados por vírgula (ex.: 1, preço, valor, quanto custa, orçamento):',
-    style='Card.TLabel',
-).pack(anchor='w')
-keyword_entry = ttk.Entry(form_frame, font=('Segoe UI', 10))
-keyword_entry.pack(fill='x', pady=(3, 8))
-
-ttk.Label(
-    form_frame,
-    text='Resposta automática do robô (pode usar várias linhas com Enter e *negrito*):',
-    style='Card.TLabel',
-).pack(anchor='w')
-reply_text_widget = tk.Text(form_frame, height=3, font=('Segoe UI', 10), wrap='word')
-style_text_widget(reply_text_widget)
-reply_text_widget.pack(fill='x', pady=(3, 4))
+sim_result_banner.pack(fill='both', expand=True, pady=(2, 0))
 
 btn_bar = ttk.Frame(tab_rules)
-btn_bar.pack(fill='x', pady=(2, 8))
+btn_bar.pack(fill='x', pady=(2, 6))
 
 save_rule_btn = ttk.Button(btn_bar, text='➕ Adicionar Nova Regra', style='Primary.TButton')
 save_rule_btn.pack(side='left', padx=(0, 6))
@@ -549,7 +565,7 @@ rules_tree = ttk.Treeview(
     rules_tree_frame,
     columns=('id', 'keyword', 'reply', 'enabled'),
     show='headings',
-    height=8,
+    height=15,
 )
 rules_scroll = ttk.Scrollbar(rules_tree_frame, orient='vertical', command=rules_tree.yview)
 rules_tree.configure(yscrollcommand=rules_scroll.set)
