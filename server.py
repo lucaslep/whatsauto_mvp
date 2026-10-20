@@ -422,40 +422,61 @@ def had_recent_welcome(sender, hours=1.0, cfg=None):
 
 
 def should_send_welcome_menu(sender, cfg=None):
-    """Retorna True quando o robô deve reiniciar a conversa com o Menu de Boas-Vindas:
-    1) Se passaram >= 15 min (`human_pause_minutes`) sem nenhuma mensagem na conversa;
-    2) Se o atendimento anterior foi encerrado (`closed_session`, `paused_human`, `human_handoff`);
-    3) Se já passou >= 1 hora (`welcome_cooldown_hours`) desde o último Menu de Boas-Vindas."""
+    """Retorna True SOMENTE quando for:
+    1) A primeira mensagem do dia dessa pessoa; OU
+    2) Quando passaram >= 156 min sem nenhuma conversa de ambos os lados
+       (ou quando o atendimento anterior já foi encerrado)."""
     if not sender:
         return False
     if cfg is None:
         cfg = get_settings()
     phone = clean_phone(sender)
-    inactivity_mins = float(cfg.get('human_pause_minutes', '15') or '15')
-    welcome_hours = float(cfg.get('welcome_cooldown_hours', '1') or '1')
-    inactivity_cutoff = (datetime.now(timezone.utc) - timedelta(minutes=inactivity_mins)).isoformat()
+    inactivity_mins = float(cfg.get('welcome_inactivity_minutes', '156') or '156')
+    now_utc = datetime.now(timezone.utc)
+    inactivity_cutoff = (now_utc - timedelta(minutes=inactivity_mins)).isoformat()
 
     with conn() as db:
         last_ev = db.execute(
-            'SELECT status, received_at FROM events WHERE (sender=? OR sender LIKE ?) ORDER BY rowid DESC LIMIT 1',
+            'SELECT message_id, status, received_at FROM events '
+            'WHERE (sender=? OR sender LIKE ?) ORDER BY rowid DESC LIMIT 1',
             (sender, f'{phone}%'),
         ).fetchone()
 
     if not last_ev:
         return True
 
-    # Se o atendimento anterior já foi encerrado, a próxima mensagem sempre traz o Menu Inicial!
-    if last_ev['status'] in ('closed_session', 'paused_human', 'human_handoff'):
+    # Se o atendimento anterior já foi encerrado (por 15 min de inatividade ou manualmente), reinicia com o Menu Inicial
+    if last_ev['status'] in ('closed_session', 'paused_human') or str(last_ev['message_id'] or '').startswith('close-'):
         return True
 
-    # Se a última interação foi há 15 minutos ou mais, reinicia a conversa com o Menu Inicial
-    if str(last_ev['received_at'] or '') <= inactivity_cutoff:
+    raw_ts = str(last_ev['received_at'] or '')
+    if not raw_ts or raw_ts <= inactivity_cutoff:
         return True
 
-    # Se não recebeu o Menu de Boas-Vindas na última 1 hora
-    if not had_recent_welcome(sender, hours=welcome_hours, cfg=cfg):
-        return True
+    # Verifica se é a primeira mensagem do dia (no fuso horário local da máquina)
+    try:
+        ev_dt_local = datetime.fromisoformat(raw_ts).astimezone()
+        now_local = datetime.now().astimezone()
+        if ev_dt_local.date() < now_local.date():
+            return True
+    except Exception:
+        pass
 
+    return False
+
+
+GREETING_WORDS = {
+    'oi', 'oii', 'oiii', 'ola', 'opa', 'bom dia', 'boa tarde', 'boa noite',
+    'menu', 'inicio', 'iniciar', 'comecar', 'ajuda', 'hello', 'hi', 'eae', 'e ai',
+}
+
+
+def is_simple_greeting(norm_body, body_tokens):
+    if norm_body in GREETING_WORDS:
+        return True
+    # Se a mensagem curta contém apenas saudação (ex.: "oi bom dia", "ola tudo bem")
+    if len(body_tokens) <= 4 and any(g in norm_body for g in ('oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'opa')):
+        return True
     return False
 
 
@@ -469,14 +490,7 @@ def decide_for_message(body, sender='', is_simulation=False, push_name=''):
     cfg = get_settings()
     welcome_on = str(cfg.get('welcome_enabled', '1')) == '1'
 
-    # REGRA DE REINÍCIO (15 MIN DE INATIVIDADE, ATENDIMENTO ENCERRADO OU 1 HORA DO ÚLTIMO MENU):
-    if not is_simulation and sender and welcome_on:
-        if should_send_welcome_menu(sender, cfg=cfg):
-            if is_outside_business_hours(cfg):
-                return format_bot_reply(cfg.get('bh_message', ''), cfg), 'outside_hours'
-            return format_bot_reply(cfg.get('welcome_message', ''), cfg), 'welcome'
-
-    # 1. Verifica se o cliente pediu para falar com atendente humano (opção 4 / atendente)
+    # 1. Verifica se o cliente pediu explicitamente para falar com atendente humano (opção 4 / atendente)
     handoff_kw = cfg.get('human_handoff_keywords', '')
     if handoff_kw and keyword_matches(handoff_kw, norm_body, body_tokens):
         if is_outside_business_hours(cfg):
@@ -487,7 +501,7 @@ def decide_for_message(body, sender='', is_simulation=False, push_name=''):
             pause_contact(sender, minutes=pause_mins, reason=reason_txt, push_name=push_name)
         return format_bot_reply(cfg.get('human_handoff_reply', ''), cfg), 'human_handoff'
 
-    # 2. Verifica regras de palavras-chave e sinônimos cadastrados (1, 2, 3...)
+    # 2. Verifica regras pré-definidas (1 - Preços, 2 - Horário, 3 - Endereço, etc.)
     with conn() as db:
         rules = db.execute(
             'SELECT keyword, reply FROM rules WHERE enabled = 1 ORDER BY length(keyword) DESC'
@@ -496,15 +510,29 @@ def decide_for_message(body, sender='', is_simulation=False, push_name=''):
         if keyword_matches(rule['keyword'], norm_body, body_tokens):
             return format_bot_reply(rule['reply'], cfg), 'rule'
 
-    # 3. Se não bateu em regra específica e está fora do horário comercial
+    # 3. Se não bateu em nenhuma regra pré-definida e está fora do horário comercial
     if is_outside_business_hours(cfg):
         return format_bot_reply(cfg.get('bh_message', ''), cfg), 'outside_hours'
 
-    # 4. Qualquer outra mensagem ("Oi", "Bom dia", etc.) recebe sempre o Menu de Boas-Vindas
+    # 4. Mensagem SEM resposta pré-definida:
+    # - Se for a 1ª mensagem do dia da pessoa OU após 15 min sem conversa (no WhatsApp real),
+    #   ou se for uma saudação inicial no Simulador ("Oi, bom dia!"), envia o Menu Inicial (1, 2, 3, 4).
+    # - Caso contrário (a pessoa já está conversando ou perguntou algo específico sem regra, como "IntelectualSys"),
+    #   chama SEMPRE um Atendente Humano!
     if welcome_on:
-        return format_bot_reply(cfg.get('welcome_message', ''), cfg), 'welcome'
+        if is_simulation:
+            if is_simple_greeting(norm_body, body_tokens):
+                return format_bot_reply(cfg.get('welcome_message', ''), cfg), 'welcome'
+        elif sender and should_send_welcome_menu(sender, cfg=cfg):
+            return format_bot_reply(cfg.get('welcome_message', ''), cfg), 'welcome'
 
-    return None, 'no_rule'
+    # 5. Pergunta/resposta sem regra pré-definida (ex.: "IntelectualSys") -> Transfere para Atendente Humano!
+    if not is_simulation and sender:
+        pause_mins = int(cfg.get('human_pause_minutes', '15') or '15')
+        short_msg = body.strip().replace('\n', ' ')[:40]
+        reason_txt = f'Dúvida específica: "{short_msg}" ({push_name})' if push_name else f'Dúvida específica: "{short_msg}"'
+        pause_contact(sender, minutes=pause_mins, reason=reason_txt, push_name=push_name)
+    return format_bot_reply(cfg.get('human_handoff_reply', ''), cfg), 'human_handoff'
 
 
 def decide(body):
