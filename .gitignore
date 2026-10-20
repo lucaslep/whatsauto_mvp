@@ -1,0 +1,11 @@
+.env
+dist/.env
+*.db
+__pycache__/
+.venv/
+node_modules/
+.wa_auth_session/
+wa_session/
+build/
+dist/
+*.spec

@@ -1,0 +1,7 @@
+Flask>=3.0,<4
+requests>=2.32,<3
+python-dotenv>=1.0,<2
+waitress>=3.0,<4
+pyinstaller>=6.0,<7
+qrcode>=8.0,<9
+pillow>=10.0,<13
